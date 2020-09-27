@@ -2599,7 +2599,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.ops = &msm8952_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
-#if defined(CONFIG_SND_SOC_CS35L35) && defined(CONFIG_SND_CS35L35_QUAT_I2S)
+#if defined(CONFIG_SND_CS35L35_QUAT_I2S)
 	{
 		.name = LPASS_BE_QUAT_MI2S_RX,
 		.stream_name = "Quaternary MI2S Playback",
@@ -2841,7 +2841,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.ignore_suspend = 1,
 	},
 
-#ifdef CONFIG_SND_SOC_CS35L35 && defined(CONFIG_SND_CS35L35_QUIN_I2S)
+#ifdef CONFIG_SND_CS35L35_QUIN_I2S
 	{
 		.name = LPASS_BE_QUIN_MI2S_TX,
 		.stream_name = "Quinary MI2S Capture",
@@ -2878,7 +2878,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 };
 
 static struct snd_soc_dai_link msm8952_hdmi_dba_dai_link[] = {
-#ifdef CONFIG_SND_SOC_CS35L35 && defined(CONFIG_SND_CS35L35_QUIN_I2S)
+#ifdef CONFIG_SND_CS35L35_QUIN_I2S
 	{
 		.name = LPASS_BE_QUIN_MI2S_RX,
 		.stream_name = "Quinary MI2S Playback",
