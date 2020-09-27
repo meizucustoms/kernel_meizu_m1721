@@ -2652,8 +2652,6 @@ net2272_plat_probe(struct platform_device *pdev)
  err_req:
 	release_mem_region(base, len);
  err:
-	kfree(dev);
-
 	return ret;
 }
 

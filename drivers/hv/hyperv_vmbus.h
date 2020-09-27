@@ -31,11 +31,6 @@
 #include <linux/hyperv.h>
 
 /*
- * Timeout for services such as KVP and fcopy.
- */
-#define HV_UTIL_TIMEOUT 30
-
-/*
  * The below CPUID leaves are present if VersionAndFeatures.HypervisorPresent
  * is set by CPUID(HVCPUID_VERSION_FEATURES).
  */
@@ -682,14 +677,6 @@ int vmbus_post_msg(void *buffer, size_t buflen);
 int vmbus_set_event(struct vmbus_channel *channel);
 
 void vmbus_on_event(unsigned long data);
-
-int hv_kvp_init(struct hv_util_service *);
-void hv_kvp_deinit(void);
-void hv_kvp_onchannelcallback(void *);
-
-int hv_vss_init(struct hv_util_service *);
-void hv_vss_deinit(void);
-void hv_vss_onchannelcallback(void *);
 
 int hv_fcopy_init(struct hv_util_service *);
 void hv_fcopy_deinit(void);

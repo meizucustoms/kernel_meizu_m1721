@@ -193,8 +193,10 @@ static void bch_data_insert_start(struct closure *cl)
 	struct data_insert_op *op = container_of(cl, struct data_insert_op, cl);
 	struct bio *bio = op->bio, *n;
 
-	if (atomic_sub_return(bio_sectors(bio), &op->c->sectors_to_gc) < 0)
+	if (atomic_sub_return(bio_sectors(bio), &op->c->sectors_to_gc) < 0) {
+		set_gc_sectors(op->c);
 		wake_up_gc(op->c);
+	}
 
 	if (op->bypass)
 		return bch_data_invalidate(cl);

@@ -614,10 +614,8 @@ phy_err:
 int phy_start_interrupts(struct phy_device *phydev)
 {
 	atomic_set(&phydev->irq_disable, 0);
-	if (request_irq(phydev->irq, phy_interrupt,
-				IRQF_SHARED,
-				"phy_interrupt",
-				phydev) < 0) {
+	if (request_irq(phydev->irq, phy_interrupt, 0, "phy_interrupt",
+			phydev) < 0) {
 		pr_warn("%s: Can't get IRQ %d (PHY)\n",
 			phydev->bus->name, phydev->irq);
 		phydev->irq = PHY_POLL;
@@ -667,29 +665,25 @@ void phy_change(struct work_struct *work)
 	struct phy_device *phydev =
 		container_of(work, struct phy_device, phy_queue);
 
-	if (phy_interrupt_is_valid(phydev)) {
-		if (phydev->drv->did_interrupt &&
-		    !phydev->drv->did_interrupt(phydev))
-			goto ignore;
+	if (phydev->drv->did_interrupt &&
+	    !phydev->drv->did_interrupt(phydev))
+		goto ignore;
 
-		if (phy_disable_interrupts(phydev))
-			goto phy_err;
-	}
+	if (phy_disable_interrupts(phydev))
+		goto phy_err;
 
 	mutex_lock(&phydev->lock);
 	if ((PHY_RUNNING == phydev->state) || (PHY_NOLINK == phydev->state))
 		phydev->state = PHY_CHANGELINK;
 	mutex_unlock(&phydev->lock);
 
-	if (phy_interrupt_is_valid(phydev)) {
-		atomic_dec(&phydev->irq_disable);
-		enable_irq(phydev->irq);
+	atomic_dec(&phydev->irq_disable);
+	enable_irq(phydev->irq);
 
-		/* Reenable interrupts */
-		if (PHY_HALTED != phydev->state &&
-		    phy_config_interrupt(phydev, PHY_INTERRUPT_ENABLED))
-			goto irq_enable_err;
-	}
+	/* Reenable interrupts */
+	if (PHY_HALTED != phydev->state &&
+	    phy_config_interrupt(phydev, PHY_INTERRUPT_ENABLED))
+		goto irq_enable_err;
 
 	/* reschedule state queue work to run as soon as possible */
 	cancel_delayed_work_sync(&phydev->state_queue);
@@ -964,10 +958,9 @@ void phy_state_machine(struct work_struct *work)
 
 void phy_mac_interrupt(struct phy_device *phydev, int new_link)
 {
+	cancel_work_sync(&phydev->phy_queue);
 	phydev->link = new_link;
-
-	/* Trigger a state machine change */
-	queue_work(system_power_efficient_wq, &phydev->phy_queue);
+	schedule_work(&phydev->phy_queue);
 }
 EXPORT_SYMBOL(phy_mac_interrupt);
 

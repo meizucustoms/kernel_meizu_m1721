@@ -38,7 +38,6 @@
 #include <linux/acpi.h>
 #include <linux/cdrom.h>
 #include <linux/sched.h>
-#include <linux/async.h>
 
 /*
  * Define if arch has non-standard setup.  This is a _PCI_ standard
@@ -432,7 +431,6 @@ enum {
 	ATA_HORKAGE_WD_BROKEN_LPM = (1 << 21),	/* some WDs have broken LPM */
 	ATA_HORKAGE_ZERO_AFTER_TRIM = (1 << 22),/* guarantees zero after trim */
 	ATA_HORKAGE_NOTRIM	= (1 << 24),	/* don't use TRIM */
-	ATA_HORKAGE_MAX_SEC_1024 = (1 << 25),   /* Limit max sects to 1024 */
 
 
 	 /* DMA mask for user DMA control: User visible values; DO NOT
@@ -869,8 +867,6 @@ struct ata_port {
 
 	struct timer_list	fastdrain_timer;
 	unsigned long		fastdrain_cnt;
-
-	async_cookie_t		cookie;
 
 	int			em_message_type;
 	void			*private_data;

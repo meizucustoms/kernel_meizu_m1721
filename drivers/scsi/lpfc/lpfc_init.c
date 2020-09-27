@@ -8705,12 +8705,9 @@ found:
 				 * already mapped to this phys_id.
 				 */
 				if (cpup->irq != LPFC_VECTOR_MAP_EMPTY) {
-					if (saved_chann <=
-					    LPFC_FCP_IO_CHAN_MAX) {
-						chann[saved_chann] =
-							cpup->channel_id;
-						saved_chann++;
-					}
+					chann[saved_chann] =
+						cpup->channel_id;
+					saved_chann++;
 					goto out;
 				}
 

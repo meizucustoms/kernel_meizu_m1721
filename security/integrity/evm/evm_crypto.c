@@ -47,7 +47,7 @@ static struct shash_desc *init_desc(char type)
 		algo = evm_hash;
 	}
 
-	if (IS_ERR_OR_NULL(*tfm)) {
+	if (*tfm == NULL) {
 		mutex_lock(&mutex);
 		if (*tfm)
 			goto out;

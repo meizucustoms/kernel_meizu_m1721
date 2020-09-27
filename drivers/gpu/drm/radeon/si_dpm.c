@@ -3009,6 +3009,19 @@ static void si_apply_state_adjust_rules(struct radeon_device *rdev,
 		    (rdev->pdev->device == 0x6817) ||
 		    (rdev->pdev->device == 0x6806))
 			max_mclk = 120000;
+	} else if (rdev->family == CHIP_VERDE) {
+		if ((rdev->pdev->revision == 0x81) ||
+		    (rdev->pdev->revision == 0x83) ||
+		    (rdev->pdev->revision == 0x87) ||
+		    (rdev->pdev->device == 0x6820) ||
+		    (rdev->pdev->device == 0x6821) ||
+		    (rdev->pdev->device == 0x6822) ||
+		    (rdev->pdev->device == 0x6823) ||
+		    (rdev->pdev->device == 0x682A) ||
+		    (rdev->pdev->device == 0x682B)) {
+			max_sclk = 75000;
+			max_mclk = 80000;
+		}
 	} else if (rdev->family == CHIP_OLAND) {
 		if ((rdev->pdev->revision == 0xC7) ||
 		    (rdev->pdev->revision == 0x80) ||
@@ -4144,7 +4157,7 @@ static int si_populate_smc_voltage_tables(struct radeon_device *rdev,
 							      &rdev->pm.dpm.dyn_state.phase_shedding_limits_table)) {
 				si_populate_smc_voltage_table(rdev, &si_pi->vddc_phase_shed_table, table);
 
-				table->phaseMaskTable.lowMask[SISLANDS_SMC_VOLTAGEMASK_VDDC_PHASE_SHEDDING] =
+				table->phaseMaskTable.lowMask[SISLANDS_SMC_VOLTAGEMASK_VDDC] =
 					cpu_to_be32(si_pi->vddc_phase_shed_table.mask_low);
 
 				si_write_smc_soft_register(rdev, SI_SMC_SOFT_REGISTER_phase_shedding_delay,

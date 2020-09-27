@@ -1899,9 +1899,8 @@ static int exynos_dsi_probe(struct platform_device *pdev)
 	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(dsi->supplies),
 				      dsi->supplies);
 	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			dev_info(dev, "failed to get regulators: %d\n", ret);
-		return ret;
+		dev_info(dev, "failed to get regulators: %d\n", ret);
+		return -EPROBE_DEFER;
 	}
 
 	dsi->clks = devm_kzalloc(dev,

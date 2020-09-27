@@ -205,8 +205,9 @@ skip_phy:
 	}
 
 	irq = platform_get_irq(pdev, 0);
-	if (irq < 0) {
-		err = irq;
+	if (!irq) {
+		dev_err(&pdev->dev, "Failed to get IRQ\n");
+		err = -ENODEV;
 		goto fail_io;
 	}
 

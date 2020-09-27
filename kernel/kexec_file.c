@@ -925,10 +925,7 @@ int kexec_load_purgatory(struct kimage *image, unsigned long min,
 	return 0;
 out:
 	vfree(pi->sechdrs);
-	pi->sechdrs = NULL;
-
 	vfree(pi->purgatory_buf);
-	pi->purgatory_buf = NULL;
 	return ret;
 }
 

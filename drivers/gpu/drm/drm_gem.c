@@ -338,32 +338,27 @@ drm_gem_handle_create_tail(struct drm_file *file_priv,
 	spin_unlock(&file_priv->table_lock);
 	idr_preload_end();
 	mutex_unlock(&dev->object_name_lock);
-	if (ret < 0)
-		goto err_unref;
-
+	if (ret < 0) {
+		drm_gem_object_handle_unreference_unlocked(obj);
+		return ret;
+	}
 	*handlep = ret;
 
 	ret = drm_vma_node_allow(&obj->vma_node, file_priv->filp);
-	if (ret)
-		goto err_remove;
+	if (ret) {
+		drm_gem_handle_delete(file_priv, *handlep);
+		return ret;
+	}
 
 	if (dev->driver->gem_open_object) {
 		ret = dev->driver->gem_open_object(obj, file_priv);
-		if (ret)
-			goto err_revoke;
+		if (ret) {
+			drm_gem_handle_delete(file_priv, *handlep);
+			return ret;
+		}
 	}
 
 	return 0;
-
-err_revoke:
-	drm_vma_node_revoke(&obj->vma_node, file_priv->filp);
-err_remove:
-	spin_lock(&file_priv->table_lock);
-	idr_remove(&file_priv->object_idr, *handlep);
-	spin_unlock(&file_priv->table_lock);
-err_unref:
-	drm_gem_object_handle_unreference_unlocked(obj);
-	return ret;
 }
 
 /**
@@ -652,6 +647,9 @@ err:
  * @file_priv: drm file-private structure
  *
  * Open an object using the global name, returning a handle and the size.
+ *
+ * This handle (of course) holds a reference to the object, so the object
+ * will not go away until the handle is deleted.
  */
 int
 drm_gem_open_ioctl(struct drm_device *dev, void *data,
@@ -676,15 +674,14 @@ drm_gem_open_ioctl(struct drm_device *dev, void *data,
 
 	/* drm_gem_handle_create_tail unlocks dev->object_name_lock. */
 	ret = drm_gem_handle_create_tail(file_priv, obj, &handle);
+	drm_gem_object_unreference_unlocked(obj);
 	if (ret)
-		goto err;
+		return ret;
 
 	args->handle = handle;
 	args->size = obj->size;
 
-err:
-	drm_gem_object_unreference_unlocked(obj);
-	return ret;
+	return 0;
 }
 
 /**

@@ -756,11 +756,7 @@ static void bcmgenet_get_ethtool_stats(struct net_device *dev,
 		else
 			p = (char *)priv;
 		p += s->stat_offset;
-		if (sizeof(unsigned long) != sizeof(u32) &&
-		    s->stat_sizeof == sizeof(unsigned long))
-			data[i] = *(unsigned long *)p;
-		else
-			data[i] = *(u32 *)p;
+		data[i] = *(u32 *)p;
 	}
 }
 
@@ -930,7 +926,6 @@ static unsigned int __bcmgenet_tx_reclaim(struct net_device *dev,
 {
 	struct bcmgenet_priv *priv = netdev_priv(dev);
 	int last_tx_cn, last_c_index, num_tx_bds;
-	struct device *kdev = &priv->pdev->dev;
 	struct enet_cb *tx_cb_ptr;
 	struct netdev_queue *txq;
 	unsigned int pkts_compl = 0;
@@ -964,7 +959,7 @@ static unsigned int __bcmgenet_tx_reclaim(struct net_device *dev,
 			pkts_compl++;
 			bds_compl = skb_shinfo(tx_cb_ptr->skb)->nr_frags + 1;
 			dev->stats.tx_bytes += tx_cb_ptr->skb->len;
-			dma_unmap_single(kdev,
+			dma_unmap_single(&dev->dev,
 					 dma_unmap_addr(tx_cb_ptr, dma_addr),
 					 dma_unmap_len(tx_cb_ptr, dma_len),
 					 DMA_TO_DEVICE);
@@ -972,7 +967,7 @@ static unsigned int __bcmgenet_tx_reclaim(struct net_device *dev,
 		} else if (dma_unmap_addr(tx_cb_ptr, dma_addr)) {
 			dev->stats.tx_bytes +=
 				dma_unmap_len(tx_cb_ptr, dma_len);
-			dma_unmap_page(kdev,
+			dma_unmap_page(&dev->dev,
 				       dma_unmap_addr(tx_cb_ptr, dma_addr),
 				       dma_unmap_len(tx_cb_ptr, dma_len),
 				       DMA_TO_DEVICE);
@@ -1062,7 +1057,7 @@ static int bcmgenet_xmit_single(struct net_device *dev,
 
 	tx_cb_ptr->skb = skb;
 
-	skb_len = skb_headlen(skb);
+	skb_len = skb_headlen(skb) < ETH_ZLEN ? ETH_ZLEN : skb_headlen(skb);
 
 	mapping = dma_map_single(kdev, skb->data, skb_len, DMA_TO_DEVICE);
 	ret = dma_mapping_error(kdev, mapping);
@@ -1296,8 +1291,7 @@ static int bcmgenet_rx_refill(struct bcmgenet_priv *priv, struct enet_cb *cb)
 	dma_addr_t mapping;
 	int ret;
 
-	skb = __netdev_alloc_skb(priv->dev, priv->rx_buf_len + SKB_ALIGNMENT,
-				 GFP_ATOMIC | __GFP_NOWARN);
+	skb = netdev_alloc_skb(priv->dev, priv->rx_buf_len + SKB_ALIGNMENT);
 	if (!skb)
 		return -ENOMEM;
 
@@ -1510,7 +1504,6 @@ static int bcmgenet_alloc_rx_buffers(struct bcmgenet_priv *priv)
 
 static void bcmgenet_free_rx_buffers(struct bcmgenet_priv *priv)
 {
-	struct device *kdev = &priv->pdev->dev;
 	struct enet_cb *cb;
 	int i;
 
@@ -1518,7 +1511,7 @@ static void bcmgenet_free_rx_buffers(struct bcmgenet_priv *priv)
 		cb = &priv->rx_cbs[i];
 
 		if (dma_unmap_addr(cb, dma_addr)) {
-			dma_unmap_single(kdev,
+			dma_unmap_single(&priv->dev->dev,
 					 dma_unmap_addr(cb, dma_addr),
 					 priv->rx_buf_len, DMA_FROM_DEVICE);
 			dma_unmap_addr_set(cb, dma_addr, 0);

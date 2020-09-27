@@ -2796,8 +2796,7 @@ btrfs_qgroup_rescan(struct btrfs_fs_info *fs_info)
 	return 0;
 }
 
-int btrfs_qgroup_wait_for_completion(struct btrfs_fs_info *fs_info,
-				     bool interruptible)
+int btrfs_qgroup_wait_for_completion(struct btrfs_fs_info *fs_info)
 {
 	int running;
 	int ret = 0;
@@ -2808,14 +2807,9 @@ int btrfs_qgroup_wait_for_completion(struct btrfs_fs_info *fs_info,
 	spin_unlock(&fs_info->qgroup_lock);
 	mutex_unlock(&fs_info->qgroup_rescan_lock);
 
-	if (!running)
-		return 0;
-
-	if (interruptible)
+	if (running)
 		ret = wait_for_completion_interruptible(
 					&fs_info->qgroup_rescan_completion);
-	else
-		wait_for_completion(&fs_info->qgroup_rescan_completion);
 
 	return ret;
 }

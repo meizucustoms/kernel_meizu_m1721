@@ -492,11 +492,9 @@ static inline bool pv_eoi_enabled(struct kvm_vcpu *vcpu)
 static bool pv_eoi_get_pending(struct kvm_vcpu *vcpu)
 {
 	u8 val;
-	if (pv_eoi_get_user(vcpu, &val) < 0) {
+	if (pv_eoi_get_user(vcpu, &val) < 0)
 		apic_debug("Can't read EOI MSR value: 0x%llx\n",
 			   (unsigned long long)vcpu->arch.pv_eoi.msr_val);
-		return false;
-	}
 	return val & 0x1;
 }
 
@@ -1944,10 +1942,4 @@ void kvm_lapic_init(void)
 	/* do not patch jump label more than once per second */
 	jump_label_rate_limit(&apic_hw_disabled, HZ);
 	jump_label_rate_limit(&apic_sw_disabled, HZ);
-}
-
-void kvm_lapic_exit(void)
-{
-	static_key_deferred_flush(&apic_hw_disabled);
-	static_key_deferred_flush(&apic_sw_disabled);
 }

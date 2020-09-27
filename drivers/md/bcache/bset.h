@@ -380,8 +380,7 @@ void bch_btree_keys_stats(struct btree_keys *, struct bset_stats *);
 
 /* Bkey utility code */
 
-#define bset_bkey_last(i)	bkey_idx((struct bkey *) (i)->d, \
-					 (unsigned int)(i)->keys)
+#define bset_bkey_last(i)	bkey_idx((struct bkey *) (i)->d, (i)->keys)
 
 static inline struct bkey *bset_bkey_idx(struct bset *i, unsigned idx)
 {

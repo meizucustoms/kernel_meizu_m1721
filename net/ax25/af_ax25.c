@@ -640,10 +640,8 @@ static int ax25_setsockopt(struct socket *sock, int level, int optname,
 		break;
 
 	case SO_BINDTODEVICE:
-		if (optlen > IFNAMSIZ - 1)
-			optlen = IFNAMSIZ - 1;
-
-		memset(devname, 0, sizeof(devname));
+		if (optlen > IFNAMSIZ)
+			optlen = IFNAMSIZ;
 
 		if (copy_from_user(devname, optval, optlen)) {
 			res = -EFAULT;
@@ -988,8 +986,7 @@ static int ax25_release(struct socket *sock)
 			release_sock(sk);
 			ax25_disconnect(ax25, 0);
 			lock_sock(sk);
-			if (!sock_flag(ax25->sk, SOCK_DESTROY))
-				ax25_destroy_socket(ax25);
+			ax25_destroy_socket(ax25);
 			break;
 
 		case AX25_STATE_3:
@@ -1192,10 +1189,7 @@ static int __must_check ax25_connect(struct socket *sock,
 	if (addr_len > sizeof(struct sockaddr_ax25) &&
 	    fsa->fsa_ax25.sax25_ndigis != 0) {
 		/* Valid number of digipeaters ? */
-		if (fsa->fsa_ax25.sax25_ndigis < 1 ||
-		    fsa->fsa_ax25.sax25_ndigis > AX25_MAX_DIGIS ||
-		    addr_len < sizeof(struct sockaddr_ax25) +
-		    sizeof(ax25_address) * fsa->fsa_ax25.sax25_ndigis) {
+		if (fsa->fsa_ax25.sax25_ndigis < 1 || fsa->fsa_ax25.sax25_ndigis > AX25_MAX_DIGIS) {
 			err = -EINVAL;
 			goto out_release;
 		}
@@ -1515,10 +1509,7 @@ static int ax25_sendmsg(struct kiocb *iocb, struct socket *sock,
 			struct full_sockaddr_ax25 *fsa = (struct full_sockaddr_ax25 *)usax;
 
 			/* Valid number of digipeaters ? */
-			if (usax->sax25_ndigis < 1 ||
-			    usax->sax25_ndigis > AX25_MAX_DIGIS ||
-			    addr_len < sizeof(struct sockaddr_ax25) +
-			    sizeof(ax25_address) * usax->sax25_ndigis) {
+			if (usax->sax25_ndigis < 1 || usax->sax25_ndigis > AX25_MAX_DIGIS) {
 				err = -EINVAL;
 				goto out;
 			}

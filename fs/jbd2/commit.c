@@ -801,7 +801,7 @@ start_journal_io:
 		err = journal_submit_commit_record(journal, commit_transaction,
 						 &cbh, crc32_sum);
 		if (err)
-			jbd2_journal_abort(journal, err);
+			__jbd2_journal_abort_hard(journal);
 	}
 
 	blk_finish_plug(&plug);
@@ -895,7 +895,7 @@ start_journal_io:
 		err = journal_submit_commit_record(journal, commit_transaction,
 						&cbh, crc32_sum);
 		if (err)
-			jbd2_journal_abort(journal, err);
+			__jbd2_journal_abort_hard(journal);
 	}
 	if (cbh)
 		err = journal_wait_on_commit_record(journal, cbh);

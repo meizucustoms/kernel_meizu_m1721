@@ -1414,9 +1414,9 @@ static int atmel_tdes_probe(struct platform_device *pdev)
 	}
 
 	tdes_dd->io_base = ioremap(tdes_dd->phys_base, tdes_phys_size);
-	if (IS_ERR(tdes_dd->io_base)) {
+	if (!tdes_dd->io_base) {
 		dev_err(dev, "can't ioremap\n");
-		err = PTR_ERR(tdes_dd->io_base);
+		err = -ENOMEM;
 		goto tdes_io_err;
 	}
 

@@ -63,7 +63,6 @@ struct as3935_state {
 	struct delayed_work work;
 
 	u32 tune_cap;
-	u8 buffer[16]; /* 8-bit data + 56-bit padding + 64-bit timestamp */
 	u8 buf[2] ____cacheline_aligned;
 };
 
@@ -72,8 +71,7 @@ static const struct iio_chan_spec as3935_channels[] = {
 		.type           = IIO_PROXIMITY,
 		.info_mask_separate =
 			BIT(IIO_CHAN_INFO_RAW) |
-			BIT(IIO_CHAN_INFO_PROCESSED) |
-			BIT(IIO_CHAN_INFO_SCALE),
+			BIT(IIO_CHAN_INFO_PROCESSED),
 		.scan_index     = 0,
 		.scan_type = {
 			.sign           = 'u',
@@ -182,12 +180,7 @@ static int as3935_read_raw(struct iio_dev *indio_dev,
 		/* storm out of range */
 		if (*val == AS3935_DATA_MASK)
 			return -EINVAL;
-
-		if (m == IIO_CHAN_INFO_PROCESSED)
-			*val *= 1000;
-		break;
-	case IIO_CHAN_INFO_SCALE:
-		*val = 1000;
+		*val *= 1000;
 		break;
 	default:
 		return -EINVAL;
@@ -212,10 +205,10 @@ static irqreturn_t as3935_trigger_handler(int irq, void *private)
 	ret = as3935_read(st, AS3935_DATA, &val);
 	if (ret)
 		goto err_read;
+	val &= AS3935_DATA_MASK;
+	val *= 1000;
 
-	st->buffer[0] = val & AS3935_DATA_MASK;
-	iio_push_to_buffers_with_timestamp(indio_dev, &st->buffer,
-					   pf->timestamp);
+	iio_push_to_buffers_with_timestamp(indio_dev, &val, pf->timestamp);
 err_read:
 	iio_trigger_notify_done(indio_dev->trig);
 
@@ -386,7 +379,7 @@ static int as3935_probe(struct spi_device *spi)
 		return ret;
 	}
 
-	ret = iio_triggered_buffer_setup(indio_dev, iio_pollfunc_store_time,
+	ret = iio_triggered_buffer_setup(indio_dev, NULL,
 		&as3935_trigger_handler, NULL);
 
 	if (ret) {

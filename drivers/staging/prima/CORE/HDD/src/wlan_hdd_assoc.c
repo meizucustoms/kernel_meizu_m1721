@@ -552,11 +552,11 @@ void hdd_copy_ht_caps(struct ieee80211_ht_cap *hdd_ht_cap,
         hdd_ht_cap->mcs.rx_mask[i] =
             roam_ht_cap->supportedMCSSet[i];
 
-    hdd_ht_cap->mcs.rx_highest =
-        ((short) (roam_ht_cap->supportedMCSSet[11]) << 8) |
-        ((short) (roam_ht_cap->supportedMCSSet[10]));
-    hdd_ht_cap->mcs.tx_params =
-        roam_ht_cap->supportedMCSSet[12];
+        hdd_ht_cap->mcs.rx_highest =
+            ((short) (roam_ht_cap->supportedMCSSet[11]) << 8) |
+            ((short) (roam_ht_cap->supportedMCSSet[10]));
+        hdd_ht_cap->mcs.tx_params =
+            roam_ht_cap->supportedMCSSet[12];
 
 }
 
@@ -594,7 +594,7 @@ void hdd_copy_vht_caps(struct ieee80211_vht_cap *hdd_vht_cap,
     temp_vht_cap = roam_vht_cap->supportedChannelWidthSet &
         (IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_MASK >>
             VHT_CAP_SUPP_CHAN_WIDTH_MASK_SHIFT);
-    if (temp_vht_cap) {
+    if (temp_vht_cap)
         if (roam_vht_cap->supportedChannelWidthSet &
             (IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ >>
             VHT_CAP_SUPP_CHAN_WIDTH_MASK_SHIFT))
@@ -607,7 +607,6 @@ void hdd_copy_vht_caps(struct ieee80211_vht_cap *hdd_vht_cap,
             hdd_vht_cap->vht_cap_info |=
             temp_vht_cap <<
             IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160_80PLUS80MHZ;
-    }
     if (roam_vht_cap->ldpcCodingCap)
         hdd_vht_cap->vht_cap_info |= IEEE80211_VHT_CAP_RXLDPC;
     if (roam_vht_cap->shortGI80MHz)
@@ -952,10 +951,10 @@ static void hdd_SendFTAssocResponse(struct net_device *dev, hdd_adapter_t *pAdap
     unsigned int len = 0;
     u8 *pFTAssocRsp = NULL;
 
-    if (pCsrRoamInfo->nAssocRspLength < FT_ASSOC_RSP_IES_OFFSET)
+    if (pCsrRoamInfo->nAssocRspLength == 0)
     {
         hddLog(LOGE,
-            "%s: Invalid assoc rsp length %d",
+            "%s: pCsrRoamInfo->nAssocRspLength=%d",
             __func__, (int)pCsrRoamInfo->nAssocRspLength);
         return;
     }
@@ -974,16 +973,6 @@ static void hdd_SendFTAssocResponse(struct net_device *dev, hdd_adapter_t *pAdap
         (unsigned int)pFTAssocRsp[0],
         (unsigned int)pFTAssocRsp[1]);
 
-    /* Send the Assoc Resp, the supplicant needs this for initial Auth. */
-    len = pCsrRoamInfo->nAssocRspLength - FT_ASSOC_RSP_IES_OFFSET;
-    if (len > IW_GENERIC_IE_MAX) {
-        hddLog(LOGE,
-             "%s: Invalid assoc rsp length %d",
-             __func__, (int)pCsrRoamInfo->nAssocRspLength);
-        return;
-    }
-    wrqu.data.length = len;
-
     // We need to send the IEs to the supplicant.
     buff = kmalloc(IW_GENERIC_IE_MAX, GFP_ATOMIC);
     if (buff == NULL)
@@ -992,6 +981,9 @@ static void hdd_SendFTAssocResponse(struct net_device *dev, hdd_adapter_t *pAdap
         return;
     }
 
+    // Send the Assoc Resp, the supplicant needs this for initial Auth.
+    len = pCsrRoamInfo->nAssocRspLength - FT_ASSOC_RSP_IES_OFFSET;
+    wrqu.data.length = len;
     memset(buff, 0, IW_GENERIC_IE_MAX);
     memcpy(buff, pFTAssocRsp, len);
     wireless_send_event(dev, IWEVASSOCRESPIE, &wrqu, buff);
@@ -2238,10 +2230,8 @@ static void hdd_SendReAssocEvent(struct net_device *dev, hdd_adapter_t *pAdapter
         goto done;
     }
 
-    if (pCsrRoamInfo->nAssocRspLength < FT_ASSOC_RSP_IES_OFFSET) {
-
-        hddLog(LOGE, "%s: Invalid assoc response length %d",
-               __func__, pCsrRoamInfo->nAssocRspLength);
+    if (pCsrRoamInfo->nAssocRspLength == 0) {
+        hddLog(LOGE, "%s: Invalid assoc response length", __func__);
         goto done;
     }
 
@@ -2258,11 +2248,6 @@ static void hdd_SendReAssocEvent(struct net_device *dev, hdd_adapter_t *pAdapter
 
     // Send the Assoc Resp, the supplicant needs this for initial Auth.
     len = pCsrRoamInfo->nAssocRspLength - FT_ASSOC_RSP_IES_OFFSET;
-    if (len > IW_GENERIC_IE_MAX) {
-        hddLog(LOGE, "%s: Invalid assoc response length %d",
-                __func__, pCsrRoamInfo->nAssocRspLength);
-         goto done;
-    }
     rspRsnLength = len;
     memcpy(rspRsnIe, pFTAssocRsp, len);
     memset(rspRsnIe + len, 0, IW_GENERIC_IE_MAX - len);
@@ -4960,7 +4945,7 @@ int hdd_set_csr_auth_type ( hdd_adapter_t  *pAdapter, eCsrAuthType RSNAuthType)
                 hddLog( LOG1, "%s: set authType to CCKM WPA. AKM also 802.1X.", __func__);
                 pRoamProfile->AuthType.authType[0] = eCSR_AUTH_TYPE_CCKM_WPA;
             } else
-            if (RSNAuthType == eCSR_AUTH_TYPE_CCKM_WPA) {
+            if ((RSNAuthType == eCSR_AUTH_TYPE_CCKM_WPA)) {
                 hddLog( LOG1, "%s: Last chance to set authType to CCKM WPA.", __func__);
                 pRoamProfile->AuthType.authType[0] = eCSR_AUTH_TYPE_CCKM_WPA;
             } else
@@ -4984,7 +4969,7 @@ int hdd_set_csr_auth_type ( hdd_adapter_t  *pAdapter, eCsrAuthType RSNAuthType)
                 hddLog( LOG1, "%s: set authType to CCKM RSN. AKM also 802.1X.", __func__);
                 pRoamProfile->AuthType.authType[0] = eCSR_AUTH_TYPE_CCKM_RSN;
             } else
-            if (RSNAuthType == eCSR_AUTH_TYPE_CCKM_RSN) {
+            if ((RSNAuthType == eCSR_AUTH_TYPE_CCKM_RSN)) {
                 hddLog( LOG1, "%s: Last chance to set authType to CCKM RSN.", __func__);
                 pRoamProfile->AuthType.authType[0] = eCSR_AUTH_TYPE_CCKM_RSN;
             } else

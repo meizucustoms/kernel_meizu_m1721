@@ -199,6 +199,7 @@ __be32 fib_compute_spec_dst(struct sk_buff *skb)
 	struct in_device *in_dev;
 	struct fib_result res;
 	struct rtable *rt;
+	struct flowi4 fl4;
 	struct net *net;
 	int scope;
 
@@ -213,13 +214,14 @@ __be32 fib_compute_spec_dst(struct sk_buff *skb)
 
 	scope = RT_SCOPE_UNIVERSE;
 	if (!ipv4_is_zeronet(ip_hdr(skb)->saddr)) {
-		struct flowi4 fl4 = {
-			.flowi4_iif = LOOPBACK_IFINDEX,
-			.daddr = ip_hdr(skb)->saddr,
-			.flowi4_tos = RT_TOS(ip_hdr(skb)->tos),
-			.flowi4_scope = scope,
-			.flowi4_mark = IN_DEV_SRC_VMARK(in_dev) ? skb->mark : 0,
-		};
+		bool vmark = in_dev && IN_DEV_SRC_VMARK(in_dev);
+		fl4.flowi4_oif = 0;
+		fl4.flowi4_iif = LOOPBACK_IFINDEX;
+		fl4.daddr = ip_hdr(skb)->saddr;
+		fl4.saddr = 0;
+		fl4.flowi4_tos = RT_TOS(ip_hdr(skb)->tos);
+		fl4.flowi4_scope = scope;
+		fl4.flowi4_mark = vmark ? skb->mark : 0;
 		if (!fib_lookup(net, &fl4, &res))
 			return FIB_RES_PREFSRC(net, res);
 	} else {
@@ -798,11 +800,7 @@ void fib_del_ifaddr(struct in_ifaddr *ifa, struct in_ifaddr *iprim)
 	if (ifa->ifa_flags & IFA_F_SECONDARY) {
 		prim = inet_ifa_byprefix(in_dev, any, ifa->ifa_mask);
 		if (prim == NULL) {
-			/* if the device has been deleted, we don't perform
-			 * address promotion
-			 */
-			if (!in_dev->dead)
-				pr_warn("%s: bug: prim == NULL\n", __func__);
+			pr_warn("%s: bug: prim == NULL\n", __func__);
 			return;
 		}
 		if (iprim && iprim != prim) {

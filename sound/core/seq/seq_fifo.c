@@ -138,7 +138,6 @@ int snd_seq_fifo_event_in(struct snd_seq_fifo *f,
 	f->tail = cell;
 	if (f->head == NULL)
 		f->head = cell;
-	cell->next = NULL;
 	f->cells++;
 	spin_unlock_irqrestore(&f->lock, flags);
 
@@ -218,8 +217,6 @@ void snd_seq_fifo_cell_putback(struct snd_seq_fifo *f,
 		spin_lock_irqsave(&f->lock, flags);
 		cell->next = f->head;
 		f->head = cell;
-		if (!f->tail)
-			f->tail = cell;
 		f->cells++;
 		spin_unlock_irqrestore(&f->lock, flags);
 	}

@@ -1943,8 +1943,10 @@ static ssize_t fuse_dev_splice_write(struct pipe_inode_info *pipe,
 		rem += pipe->bufs[(pipe->curbuf + idx) & (pipe->buffers - 1)].len;
 
 	ret = -EINVAL;
-	if (rem < len)
-		goto out_free;
+	if (rem < len) {
+		pipe_unlock(pipe);
+		goto out;
+	}
 
 	rem = len;
 	while (rem) {
@@ -1962,9 +1964,7 @@ static ssize_t fuse_dev_splice_write(struct pipe_inode_info *pipe,
 			pipe->curbuf = (pipe->curbuf + 1) & (pipe->buffers - 1);
 			pipe->nrbufs--;
 		} else {
-			if (!pipe_buf_get(pipe, ibuf))
-				goto out_free;
-
+			ibuf->ops->get(pipe, ibuf);
 			*obuf = *ibuf;
 			obuf->flags &= ~PIPE_BUF_FLAG_GIFT;
 			obuf->len = rem;
@@ -1986,13 +1986,13 @@ static ssize_t fuse_dev_splice_write(struct pipe_inode_info *pipe,
 	ret = fuse_dev_do_write(fc, &cs, len);
 
 	pipe_lock(pipe);
-out_free:
 	for (idx = 0; idx < nbuf; idx++) {
 		struct pipe_buffer *buf = &bufs[idx];
 		buf->ops->release(pipe, buf);
 	}
 	pipe_unlock(pipe);
 
+out:
 	kfree(bufs);
 	return ret;
 }

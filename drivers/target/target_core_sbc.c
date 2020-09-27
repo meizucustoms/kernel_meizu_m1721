@@ -368,7 +368,6 @@ static sense_reason_t compare_and_write_post(struct se_cmd *cmd, bool success,
 					     int *post_ret)
 {
 	struct se_device *dev = cmd->se_dev;
-	sense_reason_t ret = TCM_NO_SENSE;
 
 	/*
 	 * Only set SCF_COMPARE_AND_WRITE_POST to force a response fall-through
@@ -376,12 +375,9 @@ static sense_reason_t compare_and_write_post(struct se_cmd *cmd, bool success,
 	 * sent to the backend driver.
 	 */
 	spin_lock_irq(&cmd->t_state_lock);
-	if (cmd->transport_state & CMD_T_SENT) {
+	if ((cmd->transport_state & CMD_T_SENT) && !cmd->scsi_status) {
 		cmd->se_cmd_flags |= SCF_COMPARE_AND_WRITE_POST;
 		*post_ret = 1;
-
-		if (cmd->scsi_status == SAM_STAT_CHECK_CONDITION)
-			ret = TCM_LOGICAL_UNIT_COMMUNICATION_FAILURE;
 	}
 	spin_unlock_irq(&cmd->t_state_lock);
 
@@ -391,7 +387,7 @@ static sense_reason_t compare_and_write_post(struct se_cmd *cmd, bool success,
 	 */
 	up(&dev->caw_sem);
 
-	return ret;
+	return TCM_NO_SENSE;
 }
 
 static sense_reason_t compare_and_write_callback(struct se_cmd *cmd, bool success,
@@ -524,7 +520,7 @@ static sense_reason_t compare_and_write_callback(struct se_cmd *cmd, bool succes
 	cmd->transport_state |= CMD_T_ACTIVE|CMD_T_BUSY|CMD_T_SENT;
 	spin_unlock_irq(&cmd->t_state_lock);
 
-	__target_execute_cmd(cmd, false);
+	__target_execute_cmd(cmd);
 
 	kfree(buf);
 	return ret;

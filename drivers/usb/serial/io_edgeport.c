@@ -634,7 +634,7 @@ static void edge_interrupt_callback(struct urb *urb)
 		/* grab the txcredits for the ports if available */
 		position = 2;
 		portNumber = 0;
-		while ((position < length - 1) &&
+		while ((position < length) &&
 				(portNumber < edge_serial->serial->num_ports)) {
 			txCredits = data[position] | (data[position+1] << 8);
 			if (txCredits) {
@@ -2784,11 +2784,6 @@ static int edge_startup(struct usb_serial *serial)
 	static __u32 descriptor[3] = {	EDGE_COMPATIBILITY_MASK0,
 					EDGE_COMPATIBILITY_MASK1,
 					EDGE_COMPATIBILITY_MASK2 };
-
-	if (serial->num_bulk_in < 1 || serial->num_interrupt_in < 1) {
-		dev_err(&serial->interface->dev, "missing endpoints\n");
-		return -ENODEV;
-	}
 
 	dev = serial->dev;
 

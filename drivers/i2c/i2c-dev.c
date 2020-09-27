@@ -22,7 +22,6 @@
 
 /* The I2C_RDWR ioctl code is written by Kolja Waschk <waschk@telos.de> */
 
-#include <linux/cdev.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -47,11 +46,10 @@
 struct i2c_dev {
 	struct list_head list;
 	struct i2c_adapter *adap;
-	struct device dev;
-	struct cdev cdev;
+	struct device *dev;
 };
 
-#define I2C_MINORS	MINORMASK
+#define I2C_MINORS	256
 static LIST_HEAD(i2c_dev_list);
 static DEFINE_SPINLOCK(i2c_dev_list_lock);
 
@@ -91,14 +89,12 @@ static struct i2c_dev *get_free_i2c_dev(struct i2c_adapter *adap)
 	return i2c_dev;
 }
 
-static void put_i2c_dev(struct i2c_dev *i2c_dev, bool del_cdev)
+static void return_i2c_dev(struct i2c_dev *i2c_dev)
 {
 	spin_lock(&i2c_dev_list_lock);
 	list_del(&i2c_dev->list);
 	spin_unlock(&i2c_dev_list_lock);
-	if (del_cdev)
-		cdev_device_del(&i2c_dev->cdev, &i2c_dev->dev);
-	put_device(&i2c_dev->dev);
+	kfree(i2c_dev);
 }
 
 static ssize_t name_show(struct device *dev,
@@ -334,7 +330,7 @@ static noinline int i2cdev_ioctl_smbus(struct i2c_client *client,
 		unsigned long arg)
 {
 	struct i2c_smbus_ioctl_data data_arg;
-	union i2c_smbus_data temp = {};
+	union i2c_smbus_data temp;
 	int datasize, res;
 
 	if (copy_from_user(&data_arg,
@@ -497,8 +493,13 @@ static int i2cdev_open(struct inode *inode, struct file *file)
 	unsigned int minor = iminor(inode);
 	struct i2c_client *client;
 	struct i2c_adapter *adap;
+	struct i2c_dev *i2c_dev;
 
-	adap = i2c_get_adapter(minor);
+	i2c_dev = i2c_dev_get_by_minor(minor);
+	if (!i2c_dev)
+		return -ENODEV;
+
+	adap = i2c_get_adapter(i2c_dev->adap->nr);
 	if (!adap)
 		return -ENODEV;
 
@@ -547,14 +548,6 @@ static const struct file_operations i2cdev_fops = {
 
 static struct class *i2c_dev_class;
 
-static void i2cdev_dev_release(struct device *dev)
-{
-	struct i2c_dev *i2c_dev;
-
-	i2c_dev = container_of(dev, struct i2c_dev, dev);
-	kfree(i2c_dev);
-}
-
 static int i2cdev_attach_adapter(struct device *dev, void *dummy)
 {
 	struct i2c_adapter *adap;
@@ -569,25 +562,21 @@ static int i2cdev_attach_adapter(struct device *dev, void *dummy)
 	if (IS_ERR(i2c_dev))
 		return PTR_ERR(i2c_dev);
 
-	cdev_init(&i2c_dev->cdev, &i2cdev_fops);
-	i2c_dev->cdev.owner = THIS_MODULE;
-
-	device_initialize(&i2c_dev->dev);
-	i2c_dev->dev.devt = MKDEV(I2C_MAJOR, adap->nr);
-	i2c_dev->dev.class = i2c_dev_class;
-	i2c_dev->dev.parent = &adap->dev;
-	i2c_dev->dev.release = i2cdev_dev_release;
-	dev_set_name(&i2c_dev->dev, "i2c-%d", adap->nr);
-
-	res = cdev_device_add(&i2c_dev->cdev, &i2c_dev->dev);
-	if (res) {
-		put_i2c_dev(i2c_dev, false);
-		return res;
+	/* register this i2c device with the driver core */
+	i2c_dev->dev = device_create(i2c_dev_class, &adap->dev,
+				     MKDEV(I2C_MAJOR, adap->nr), NULL,
+				     "i2c-%d", adap->nr);
+	if (IS_ERR(i2c_dev->dev)) {
+		res = PTR_ERR(i2c_dev->dev);
+		goto error;
 	}
 
 	pr_debug("i2c-dev: adapter [%s] registered as minor %d\n",
 		 adap->name, adap->nr);
 	return 0;
+error:
+	return_i2c_dev(i2c_dev);
+	return res;
 }
 
 static int i2cdev_detach_adapter(struct device *dev, void *dummy)
@@ -603,7 +592,8 @@ static int i2cdev_detach_adapter(struct device *dev, void *dummy)
 	if (!i2c_dev) /* attach_adapter must have failed */
 		return 0;
 
-	put_i2c_dev(i2c_dev, true);
+	return_i2c_dev(i2c_dev);
+	device_destroy(i2c_dev_class, MKDEV(I2C_MAJOR, adap->nr));
 
 	pr_debug("i2c-dev: adapter [%s] unregistered\n", adap->name);
 	return 0;
@@ -640,7 +630,7 @@ static int __init i2c_dev_init(void)
 
 	printk(KERN_INFO "i2c /dev entries driver\n");
 
-	res = register_chrdev_region(MKDEV(I2C_MAJOR, 0), I2C_MINORS, "i2c");
+	res = register_chrdev(I2C_MAJOR, "i2c", &i2cdev_fops);
 	if (res)
 		goto out;
 
@@ -664,7 +654,7 @@ static int __init i2c_dev_init(void)
 out_unreg_class:
 	class_destroy(i2c_dev_class);
 out_unreg_chrdev:
-	unregister_chrdev_region(MKDEV(I2C_MAJOR, 0), I2C_MINORS);
+	unregister_chrdev(I2C_MAJOR, "i2c");
 out:
 	printk(KERN_ERR "%s: Driver Initialisation failed\n", __FILE__);
 	return res;
@@ -675,7 +665,7 @@ static void __exit i2c_dev_exit(void)
 	bus_unregister_notifier(&i2c_bus_type, &i2cdev_notifier);
 	i2c_for_each_dev(NULL, i2cdev_detach_adapter);
 	class_destroy(i2c_dev_class);
-	unregister_chrdev_region(MKDEV(I2C_MAJOR, 0), I2C_MINORS);
+	unregister_chrdev(I2C_MAJOR, "i2c");
 }
 
 MODULE_AUTHOR("Frodo Looijaard <frodol@dds.nl> and "

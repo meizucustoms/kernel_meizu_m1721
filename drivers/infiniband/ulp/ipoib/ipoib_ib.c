@@ -955,6 +955,19 @@ static inline int update_parent_pkey(struct ipoib_dev_priv *priv)
 		 */
 		priv->dev->broadcast[8] = priv->pkey >> 8;
 		priv->dev->broadcast[9] = priv->pkey & 0xff;
+
+		/*
+		 * Update the broadcast address in the priv->broadcast object,
+		 * in case it already exists, otherwise no one will do that.
+		 */
+		if (priv->broadcast) {
+			spin_lock_irq(&priv->lock);
+			memcpy(priv->broadcast->mcmember.mgid.raw,
+			       priv->dev->broadcast + 4,
+			sizeof(union ib_gid));
+			spin_unlock_irq(&priv->lock);
+		}
+
 		return 0;
 	}
 
@@ -1035,17 +1048,8 @@ static void __ipoib_ib_dev_flush(struct ipoib_dev_priv *priv,
 	}
 
 	if (level == IPOIB_FLUSH_LIGHT) {
-		int oper_up;
 		ipoib_mark_paths_invalid(dev);
-		/* Set IPoIB operation as down to prevent races between:
-		 * the flush flow which leaves MCG and on the fly joins
-		 * which can happen during that time. mcast restart task
-		 * should deal with join requests we missed.
-		 */
-		oper_up = test_and_clear_bit(IPOIB_FLAG_OPER_UP, &priv->flags);
 		ipoib_mcast_dev_flush(dev);
-		if (oper_up)
-			set_bit(IPOIB_FLAG_OPER_UP, &priv->flags);
 	}
 
 	if (level >= IPOIB_FLUSH_NORMAL)

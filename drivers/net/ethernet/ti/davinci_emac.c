@@ -1509,10 +1509,7 @@ static int emac_devioctl(struct net_device *ndev, struct ifreq *ifrq, int cmd)
 
 	/* TODO: Add phy read and write and private statistics get feature */
 
-	if (priv->phydev)
-		return phy_mii_ioctl(priv->phydev, ifrq, cmd);
-	else
-		return -EOPNOTSUPP;
+	return phy_mii_ioctl(priv->phydev, ifrq, cmd);
 }
 
 static int match_first_device(struct device *dev, void *data)
@@ -1849,6 +1846,8 @@ davinci_emac_of_get_pdata(struct platform_device *pdev, struct emac_priv *priv)
 		pdata->version = auxdata->version;
 		pdata->hw_ram_addr = auxdata->hw_ram_addr;
 	}
+
+	pdev->dev.platform_data = pdata;
 
 	return  pdata;
 }

@@ -305,16 +305,11 @@ static void macvlan_process_broadcast(struct work_struct *w)
 
 		rcu_read_unlock();
 
-		if (src)
-			dev_put(src->dev);
 		kfree_skb(skb);
-
-		cond_resched();
 	}
 }
 
 static void macvlan_broadcast_enqueue(struct macvlan_port *port,
-				      const struct macvlan_dev *src,
 				      struct sk_buff *skb)
 {
 	struct sk_buff *nskb;
@@ -324,12 +319,8 @@ static void macvlan_broadcast_enqueue(struct macvlan_port *port,
 	if (!nskb)
 		goto err;
 
-	MACVLAN_SKB_CB(nskb)->src = src;
-
 	spin_lock(&port->bc_queue.lock);
 	if (skb_queue_len(&port->bc_queue) < MACVLAN_BC_QUEUE_LEN) {
-		if (src)
-			dev_hold(src->dev);
 		__skb_queue_tail(&port->bc_queue, nskb);
 		err = 0;
 	}
@@ -420,10 +411,6 @@ static rx_handler_result_t macvlan_handle_frame(struct sk_buff **pskb)
 	int ret;
 	rx_handler_result_t handle_res;
 
-	/* Packets from dev_loopback_xmit() do not have L2 header, bail out */
-	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
-		return RX_HANDLER_PASS;
-
 	port = macvlan_port_get_rcu(skb->dev);
 	if (is_multicast_ether_addr(eth->h_dest)) {
 		skb = ip_check_defrag(skb, IP_DEFRAG_MACVLAN);
@@ -442,7 +429,8 @@ static rx_handler_result_t macvlan_handle_frame(struct sk_buff **pskb)
 			goto out;
 		}
 
-		macvlan_broadcast_enqueue(port, src, skb);
+		MACVLAN_SKB_CB(skb)->src = src;
+		macvlan_broadcast_enqueue(port, skb);
 
 		return RX_HANDLER_PASS;
 	}
@@ -1527,7 +1515,7 @@ static int macvlan_device_event(struct notifier_block *unused,
 						struct macvlan_dev,
 						list);
 
-		if (vlan && macvlan_sync_address(vlan->dev, dev->dev_addr))
+		if (macvlan_sync_address(vlan->dev, dev->dev_addr))
 			return NOTIFY_BAD;
 
 		break;

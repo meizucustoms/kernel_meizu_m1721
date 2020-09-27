@@ -200,7 +200,6 @@ struct musb_platform_ops {
 	int	(*adjust_channel_params)(struct dma_channel *channel,
 				u16 packet_sz, u8 *mode,
 				dma_addr_t *dma_addr, u32 *len);
-	void	(*clear_ep_rxintr)(struct musb *musb, int epnum);
 };
 
 /*
@@ -586,12 +585,6 @@ static inline int musb_platform_exit(struct musb *musb)
 		return -EINVAL;
 
 	return musb->ops->exit(musb);
-}
-
-static inline void musb_platform_clear_ep_rxintr(struct musb *musb, int epnum)
-{
-	if (musb->ops->clear_ep_rxintr)
-		musb->ops->clear_ep_rxintr(musb, epnum);
 }
 
 #endif	/* __MUSB_CORE_H__ */

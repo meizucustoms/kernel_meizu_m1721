@@ -7829,14 +7829,6 @@ static int tigon3_dma_hwbug_workaround(struct tg3_napi *tnapi,
 	return ret;
 }
 
-static bool tg3_tso_bug_gso_check(struct tg3_napi *tnapi, struct sk_buff *skb)
-{
-	/* Check if we will never have enough descriptors,
-	 * as gso_segs can be more than current ring size
-	 */
-	return skb_shinfo(skb)->gso_segs < tnapi->tx_pending / 3;
-}
-
 static netdev_tx_t tg3_start_xmit(struct sk_buff *, struct net_device *);
 
 /* Use GSO to workaround all TSO packets that meet HW bug conditions
@@ -7940,19 +7932,14 @@ static netdev_tx_t tg3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		 * vlan encapsulated.
 		 */
 		if (skb->protocol == htons(ETH_P_8021Q) ||
-		    skb->protocol == htons(ETH_P_8021AD)) {
-			if (tg3_tso_bug_gso_check(tnapi, skb))
-				return tg3_tso_bug(tp, tnapi, txq, skb);
-			goto drop;
-		}
+		    skb->protocol == htons(ETH_P_8021AD))
+			return tg3_tso_bug(tp, tnapi, txq, skb);
 
 		if (!skb_is_gso_v6(skb)) {
 			if (unlikely((ETH_HLEN + hdr_len) > 80) &&
-			    tg3_flag(tp, TSO_BUG)) {
-				if (tg3_tso_bug_gso_check(tnapi, skb))
-					return tg3_tso_bug(tp, tnapi, txq, skb);
-				goto drop;
-			}
+			    tg3_flag(tp, TSO_BUG))
+				return tg3_tso_bug(tp, tnapi, txq, skb);
+
 			ip_csum = iph->check;
 			ip_tot_len = iph->tot_len;
 			iph->check = 0;
@@ -8084,7 +8071,7 @@ static netdev_tx_t tg3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (would_hit_hwbug) {
 		tg3_tx_skb_unmap(tnapi, tnapi->tx_prod, i);
 
-		if (mss && tg3_tso_bug_gso_check(tnapi, skb)) {
+		if (mss) {
 			/* If it's a TSO packet, do GSO instead of
 			 * allocating and copying to a large linear SKB
 			 */
@@ -18136,11 +18123,11 @@ static pci_ers_result_t tg3_io_error_detected(struct pci_dev *pdev,
 
 	rtnl_lock();
 
+	tp->pcierr_recovery = true;
+
 	/* We probably don't have netdev yet */
 	if (!netdev || !netif_running(netdev))
 		goto done;
-
-	tp->pcierr_recovery = true;
 
 	tg3_phy_stop(tp);
 
@@ -18238,7 +18225,7 @@ static void tg3_io_resume(struct pci_dev *pdev)
 
 	rtnl_lock();
 
-	if (!netdev || !netif_running(netdev))
+	if (!netif_running(netdev))
 		goto done;
 
 	tg3_full_lock(tp, 0);

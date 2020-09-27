@@ -159,30 +159,13 @@ static void fm10k_reinit(struct fm10k_intfc *interface)
 
 	fm10k_mbx_free_irq(interface);
 
-	/* free interrupts */
-	fm10k_clear_queueing_scheme(interface);
-
 	/* delay any future reset requests */
 	interface->last_reset = jiffies + (10 * HZ);
 
 	/* reset and initialize the hardware so it is in a known state */
-	err = hw->mac.ops.reset_hw(hw);
-	if (err) {
-		dev_err(&interface->pdev->dev, "reset_hw failed: %d\n", err);
-		goto reinit_err;
-	}
-
-	err = hw->mac.ops.init_hw(hw);
-	if (err) {
+	err = hw->mac.ops.reset_hw(hw) ? : hw->mac.ops.init_hw(hw);
+	if (err)
 		dev_err(&interface->pdev->dev, "init_hw failed: %d\n", err);
-		goto reinit_err;
-	}
-
-	err = fm10k_init_queueing_scheme(interface);
-	if (err) {
-		dev_err(&interface->pdev->dev, "init_queueing_scheme failed: %d\n", err);
-		goto reinit_err;
-	}
 
 	/* reassociate interrupts */
 	fm10k_mbx_request_irq(interface);
@@ -194,10 +177,6 @@ static void fm10k_reinit(struct fm10k_intfc *interface)
 		fm10k_open(netdev);
 
 	fm10k_iov_resume(interface->pdev);
-
-reinit_err:
-	if (err)
-		netif_device_detach(netdev);
 
 	rtnl_unlock();
 
@@ -1038,10 +1017,6 @@ void fm10k_mbx_free_irq(struct fm10k_intfc *interface)
 	struct fm10k_hw *hw = &interface->hw;
 	int itr_reg;
 
-	/* no mailbox IRQ to free if MSI-X is not enabled */
-	if (!interface->msix_entries)
-		return;
-
 	/* disconnect the mailbox */
 	hw->mbx.ops.disconnect(hw, &hw->mbx);
 
@@ -1364,15 +1339,10 @@ int fm10k_mbx_request_irq(struct fm10k_intfc *interface)
 		err = fm10k_mbx_request_irq_pf(interface);
 	else
 		err = fm10k_mbx_request_irq_vf(interface);
-	if (err)
-		return err;
 
 	/* connect mailbox */
-	err = hw->mbx.ops.connect(hw, &hw->mbx);
-
-	/* if the mailbox failed to connect, then free IRQ */
-	if (err)
-		fm10k_mbx_free_irq(interface);
+	if (!err)
+		err = hw->mbx.ops.connect(hw, &hw->mbx);
 
 	return err;
 }
@@ -1635,13 +1605,7 @@ static int fm10k_sw_init(struct fm10k_intfc *interface,
 	interface->last_reset = jiffies + (10 * HZ);
 
 	/* reset and initialize the hardware so it is in a known state */
-	err = hw->mac.ops.reset_hw(hw);
-	if (err) {
-		dev_err(&pdev->dev, "reset_hw failed: %d\n", err);
-		return err;
-	}
-
-	err = hw->mac.ops.init_hw(hw);
+	err = hw->mac.ops.reset_hw(hw) ? : hw->mac.ops.init_hw(hw);
 	if (err) {
 		dev_err(&pdev->dev, "init_hw failed: %d\n", err);
 		return err;
@@ -1985,10 +1949,8 @@ static int fm10k_resume(struct pci_dev *pdev)
 
 	/* reset hardware to known state */
 	err = hw->mac.ops.init_hw(&interface->hw);
-	if (err) {
-		dev_err(&pdev->dev, "init_hw failed: %d\n", err);
+	if (err)
 		return err;
-	}
 
 	/* reset statistics starting values */
 	hw->mac.ops.rebind_hw_stats(hw, &interface->stats);
@@ -2081,9 +2043,6 @@ static pci_ers_result_t fm10k_io_error_detected(struct pci_dev *pdev,
 	if (netif_running(netdev))
 		fm10k_close(netdev);
 
-	/* free interrupts */
-	fm10k_clear_queueing_scheme(interface);
-
 	fm10k_mbx_free_irq(interface);
 
 	pci_disable_device(pdev);
@@ -2147,20 +2106,10 @@ static void fm10k_io_resume(struct pci_dev *pdev)
 	int err = 0;
 
 	/* reset hardware to known state */
-	err = hw->mac.ops.init_hw(&interface->hw);
-	if (err) {
-		dev_err(&pdev->dev, "init_hw failed: %d\n", err);
-		return;
-	}
+	hw->mac.ops.init_hw(&interface->hw);
 
 	/* reset statistics starting values */
 	hw->mac.ops.rebind_hw_stats(hw, &interface->stats);
-
-	err = fm10k_init_queueing_scheme(interface);
-	if (err) {
-		dev_err(&interface->pdev->dev, "init_queueing_scheme failed: %d\n", err);
-		return;
-	}
 
 	/* reassociate interrupts */
 	fm10k_mbx_request_irq(interface);

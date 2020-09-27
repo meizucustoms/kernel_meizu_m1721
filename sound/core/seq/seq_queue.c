@@ -181,8 +181,6 @@ void __exit snd_seq_queues_delete(void)
 	}
 }
 
-static void queue_use(struct snd_seq_queue *queue, int client, int use);
-
 /* allocate a new queue -
  * return queue index value or negative value for error
  */
@@ -194,11 +192,11 @@ int snd_seq_queue_alloc(int client, int locked, unsigned int info_flags)
 	if (q == NULL)
 		return -ENOMEM;
 	q->info_flags = info_flags;
-	queue_use(q, client, 1);
 	if (queue_list_add(q) < 0) {
 		queue_delete(q);
 		return -ENOMEM;
 	}
+	snd_seq_queue_use(q->queue, client, 1); /* use this queue */
 	return q->queue;
 }
 
@@ -257,8 +255,6 @@ void snd_seq_check_queue(struct snd_seq_queue *q, int atomic, int hop)
 {
 	unsigned long flags;
 	struct snd_seq_event_cell *cell;
-	snd_seq_tick_time_t cur_tick;
-	snd_seq_real_time_t cur_time;
 
 	if (q == NULL)
 		return;
@@ -275,18 +271,17 @@ void snd_seq_check_queue(struct snd_seq_queue *q, int atomic, int hop)
 
       __again:
 	/* Process tick queue... */
-	cur_tick = snd_seq_timer_get_cur_tick(q->timer);
 	for (;;) {
-		cell = snd_seq_prioq_cell_out(q->tickq, &cur_tick);
+		cell = snd_seq_prioq_cell_out(q->tickq,
+					      &q->timer->tick.cur_tick);
 		if (!cell)
 			break;
 		snd_seq_dispatch_event(cell, atomic, hop);
 	}
 
 	/* Process time queue... */
-	cur_time = snd_seq_timer_get_cur_time(q->timer, false);
 	for (;;) {
-		cell = snd_seq_prioq_cell_out(q->timeq, &cur_time);
+		cell = snd_seq_prioq_cell_out(q->timeq, &q->timer->cur_time);
 		if (!cell)
 			break;
 		snd_seq_dispatch_event(cell, atomic, hop);
@@ -414,7 +409,6 @@ int snd_seq_queue_check_access(int queueid, int client)
 int snd_seq_queue_set_owner(int queueid, int client, int locked)
 {
 	struct snd_seq_queue *q = queueptr(queueid);
-	unsigned long flags;
 
 	if (q == NULL)
 		return -EINVAL;
@@ -424,10 +418,8 @@ int snd_seq_queue_set_owner(int queueid, int client, int locked)
 		return -EPERM;
 	}
 
-	spin_lock_irqsave(&q->owner_lock, flags);
 	q->locked = locked ? 1 : 0;
 	q->owner = client;
-	spin_unlock_irqrestore(&q->owner_lock, flags);
 	queue_access_unlock(q);
 	queuefree(q);
 
@@ -500,9 +492,19 @@ int snd_seq_queue_timer_set_tempo(int queueid, int client,
 	return result;
 }
 
-/* use or unuse this queue */
-static void queue_use(struct snd_seq_queue *queue, int client, int use)
+
+/* use or unuse this queue -
+ * if it is the first client, starts the timer.
+ * if it is not longer used by any clients, stop the timer.
+ */
+int snd_seq_queue_use(int queueid, int client, int use)
 {
+	struct snd_seq_queue *queue;
+
+	queue = queueptr(queueid);
+	if (queue == NULL)
+		return -EINVAL;
+	mutex_lock(&queue->timer_mutex);
 	if (use) {
 		if (!test_and_set_bit(client, queue->clients_bitmap))
 			queue->clients++;
@@ -517,21 +519,6 @@ static void queue_use(struct snd_seq_queue *queue, int client, int use)
 	} else {
 		snd_seq_timer_close(queue);
 	}
-}
-
-/* use or unuse this queue -
- * if it is the first client, starts the timer.
- * if it is not longer used by any clients, stop the timer.
- */
-int snd_seq_queue_use(int queueid, int client, int use)
-{
-	struct snd_seq_queue *queue;
-
-	queue = queueptr(queueid);
-	if (queue == NULL)
-		return -EINVAL;
-	mutex_lock(&queue->timer_mutex);
-	queue_use(queue, client, use);
 	mutex_unlock(&queue->timer_mutex);
 	queuefree(queue);
 	return 0;
@@ -566,17 +553,15 @@ void snd_seq_queue_client_termination(int client)
 	unsigned long flags;
 	int i;
 	struct snd_seq_queue *q;
-	bool matched;
 
 	for (i = 0; i < SNDRV_SEQ_MAX_QUEUES; i++) {
 		if ((q = queueptr(i)) == NULL)
 			continue;
 		spin_lock_irqsave(&q->owner_lock, flags);
-		matched = (q->owner == client);
-		if (matched)
+		if (q->owner == client)
 			q->klocked = 1;
 		spin_unlock_irqrestore(&q->owner_lock, flags);
-		if (matched) {
+		if (q->owner == client) {
 			if (q->timer->running)
 				snd_seq_timer_stop(q->timer);
 			snd_seq_timer_reset(q->timer);
@@ -768,8 +753,6 @@ void snd_seq_info_queues_read(struct snd_info_entry *entry,
 	int i, bpm;
 	struct snd_seq_queue *q;
 	struct snd_seq_timer *tmr;
-	bool locked;
-	int owner;
 
 	for (i = 0; i < SNDRV_SEQ_MAX_QUEUES; i++) {
 		if ((q = queueptr(i)) == NULL)
@@ -781,14 +764,9 @@ void snd_seq_info_queues_read(struct snd_info_entry *entry,
 		else
 			bpm = 0;
 
-		spin_lock_irq(&q->owner_lock);
-		locked = q->locked;
-		owner = q->owner;
-		spin_unlock_irq(&q->owner_lock);
-
 		snd_iprintf(buffer, "queue %d: [%s]\n", q->queue, q->name);
-		snd_iprintf(buffer, "owned by client    : %d\n", owner);
-		snd_iprintf(buffer, "lock status        : %s\n", locked ? "Locked" : "Free");
+		snd_iprintf(buffer, "owned by client    : %d\n", q->owner);
+		snd_iprintf(buffer, "lock status        : %s\n", q->locked ? "Locked" : "Free");
 		snd_iprintf(buffer, "queued time events : %d\n", snd_seq_prioq_avail(q->timeq));
 		snd_iprintf(buffer, "queued tick events : %d\n", snd_seq_prioq_avail(q->tickq));
 		snd_iprintf(buffer, "timer state        : %s\n", tmr->running ? "Running" : "Stopped");

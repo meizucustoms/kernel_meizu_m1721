@@ -49,7 +49,40 @@ static inline size_t buffer_start(struct persistent_ram_zone *prz)
 }
 
 /* increase and wrap the start pointer, returning the old value */
-static size_t buffer_start_add(struct persistent_ram_zone *prz, size_t a)
+static size_t buffer_start_add_atomic(struct persistent_ram_zone *prz, size_t a)
+{
+	int old;
+	int new;
+
+	do {
+		old = atomic_read(&prz->buffer->start);
+		new = old + a;
+		while (unlikely(new >= prz->buffer_size))
+			new -= prz->buffer_size;
+	} while (atomic_cmpxchg(&prz->buffer->start, old, new) != old);
+
+	return old;
+}
+
+/* increase the size counter until it hits the max size */
+static void buffer_size_add_atomic(struct persistent_ram_zone *prz, size_t a)
+{
+	size_t old;
+	size_t new;
+
+	if (atomic_read(&prz->buffer->size) == prz->buffer_size)
+		return;
+
+	do {
+		old = atomic_read(&prz->buffer->size);
+		new = old + a;
+		if (new > prz->buffer_size)
+			new = prz->buffer_size;
+	} while (atomic_cmpxchg(&prz->buffer->size, old, new) != old);
+}
+
+/* increase and wrap the start pointer, returning the old value */
+static size_t buffer_start_add_locked(struct persistent_ram_zone *prz, size_t a)
 {
 	int old;
 	int new;
@@ -71,7 +104,7 @@ static size_t buffer_start_add(struct persistent_ram_zone *prz, size_t a)
 }
 
 /* increase the size counter until it hits the max size */
-static void buffer_size_add(struct persistent_ram_zone *prz, size_t a)
+static void buffer_size_add_locked(struct persistent_ram_zone *prz, size_t a)
 {
 	size_t old;
 	size_t new;
@@ -93,6 +126,9 @@ exit:
 	if (!(prz->flags & PRZ_FLAG_NO_LOCK))
 		raw_spin_unlock_irqrestore(&prz->buffer_lock, flags);
 }
+
+static size_t (*buffer_start_add)(struct persistent_ram_zone *, size_t) = buffer_start_add_atomic;
+static void (*buffer_size_add)(struct persistent_ram_zone *, size_t) = buffer_size_add_atomic;
 
 static void notrace persistent_ram_encode_rs8(struct persistent_ram_zone *prz,
 	uint8_t *data, size_t len, uint8_t *ecc)
@@ -262,7 +298,7 @@ ssize_t persistent_ram_ecc_string(struct persistent_ram_zone *prz,
 	return ret;
 }
 
-#if (defined CONFIG_MACH_XIAOMI_C6) || (defined CONFIG_MACH_XIAOMI_D2)
+#if (defined CONFIG_MACH_MEIZU_M1721) 
 static void *memcpy_pstore(void *dest, const void *src, size_t count)
 {
 	char *tmp = dest;
@@ -278,10 +314,10 @@ static void notrace persistent_ram_update(struct persistent_ram_zone *prz,
 	const void *s, unsigned int start, unsigned int count)
 {
 	struct persistent_ram_buffer *buffer = prz->buffer;
-#if (defined CONFIG_MACH_XIAOMI_C6) || (defined CONFIG_MACH_XIAOMI_D2)
+#if (defined CONFIG_MACH_MEIZU_M1721) 
 	memcpy_pstore(buffer->data + start, s, count);
 #else
-	memcpy_toio(buffer->data + start, s, count);
+	memcpy(buffer->data + start, s, count);
 #endif
 	persistent_ram_update_ecc(prz, start, count);
 }
@@ -315,8 +351,8 @@ void persistent_ram_save_old(struct persistent_ram_zone *prz)
 	}
 
 	prz->old_log_size = size;
-	memcpy_fromio(prz->old_log, &buffer->data[start], size - start);
-	memcpy_fromio(prz->old_log + size - start, &buffer->data[0], start);
+	memcpy(prz->old_log, &buffer->data[start], size - start);
+	memcpy(prz->old_log + size - start, &buffer->data[0], start);
 }
 
 int notrace persistent_ram_write(struct persistent_ram_zone *prz,
@@ -455,6 +491,9 @@ static void *persistent_ram_iomap(phys_addr_t start, size_t size,
 			(unsigned long long)size, (unsigned long long)start);
 		return NULL;
 	}
+
+	buffer_start_add = buffer_start_add_locked;
+	buffer_size_add = buffer_size_add_locked;
 
 	if (memtype)
 		va = ioremap(start, size);

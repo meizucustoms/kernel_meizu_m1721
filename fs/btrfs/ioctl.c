@@ -59,7 +59,6 @@
 #include "props.h"
 #include "sysfs.h"
 #include "qgroup.h"
-#include "tree-log.h"
 
 #ifdef CONFIG_64BIT
 /* If we have a 32-bit userspace and 64-bit kernel, then the UAPI
@@ -2528,8 +2527,6 @@ static noinline int btrfs_ioctl_snap_destroy(struct file *file,
 out_end_trans:
 	trans->block_rsv = NULL;
 	trans->bytes_reserved = 0;
-	if (!err)
-		btrfs_record_snapshot_destroy(trans, dir);
 	ret = btrfs_end_transaction(trans, root);
 	if (ret && !err)
 		err = ret;
@@ -3674,11 +3671,6 @@ process_slot:
 		}
 		btrfs_release_path(path);
 		key.offset++;
-
-		if (fatal_signal_pending(current)) {
-			ret = -EINTR;
-			goto out;
-		}
 	}
 	ret = 0;
 
@@ -4989,7 +4981,7 @@ static long btrfs_ioctl_quota_rescan_wait(struct file *file, void __user *arg)
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	return btrfs_qgroup_wait_for_completion(root->fs_info, true);
+	return btrfs_qgroup_wait_for_completion(root->fs_info);
 }
 
 static long _btrfs_ioctl_set_received_subvol(struct file *file,

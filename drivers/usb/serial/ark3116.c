@@ -99,17 +99,10 @@ static int ark3116_read_reg(struct usb_serial *serial,
 				 usb_rcvctrlpipe(serial->dev, 0),
 				 0xfe, 0xc0, 0, reg,
 				 buf, 1, ARK_TIMEOUT);
-	if (result < 1) {
-		dev_err(&serial->interface->dev,
-				"failed to read register %u: %d\n",
-				reg, result);
-		if (result >= 0)
-			result = -EIO;
-
+	if (result < 0)
 		return result;
-	}
-
-	return buf[0];
+	else
+		return buf[0];
 }
 
 static inline int calc_divisor(int bps)

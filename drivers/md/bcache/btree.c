@@ -1375,7 +1375,7 @@ static int btree_gc_coalesce(struct btree *b, struct btree_op *op,
 			if (__set_blocks(n1, n1->keys + n2->keys,
 					 block_bytes(b->c)) >
 			    btree_blocks(new_nodes[i]))
-				goto out_unlock_nocoalesce;
+				goto out_nocoalesce;
 
 			keys = n2->keys;
 			/* Take the key of the node we're getting rid of */
@@ -1404,7 +1404,7 @@ static int btree_gc_coalesce(struct btree *b, struct btree_op *op,
 
 		if (__bch_keylist_realloc(&keylist,
 					  bkey_u64s(&new_nodes[i]->key)))
-			goto out_unlock_nocoalesce;
+			goto out_nocoalesce;
 
 		bch_btree_node_write(new_nodes[i], &cl);
 		bch_keylist_add(&keylist, &new_nodes[i]->key);
@@ -1449,10 +1449,6 @@ static int btree_gc_coalesce(struct btree *b, struct btree_op *op,
 
 	/* Invalidated our iterator */
 	return -EINTR;
-
-out_unlock_nocoalesce:
-	for (i = 0; i < nodes; i++)
-		mutex_unlock(&new_nodes[i]->write_lock);
 
 out_nocoalesce:
 	closure_sync(&cl);
@@ -1771,34 +1767,33 @@ static void bch_btree_gc(struct cache_set *c)
 	bch_moving_gc(c);
 }
 
-static bool gc_should_run(struct cache_set *c)
-{
-	struct cache *ca;
-	unsigned i;
-
-	for_each_cache(ca, c, i)
-		if (ca->invalidate_needs_gc)
-			return true;
-
-	if (atomic_read(&c->sectors_to_gc) < 0)
-		return true;
-
-	return false;
-}
-
 static int bch_gc_thread(void *arg)
 {
 	struct cache_set *c = arg;
+	struct cache *ca;
+	unsigned i;
 
 	while (1) {
-		wait_event_interruptible(c->gc_wait,
-			   kthread_should_stop() || gc_should_run(c));
+again:
+		bch_btree_gc(c);
 
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (kthread_should_stop())
 			break;
 
-		set_gc_sectors(c);
-		bch_btree_gc(c);
+		mutex_lock(&c->bucket_lock);
+
+		for_each_cache(ca, c, i)
+			if (ca->invalidate_needs_gc) {
+				mutex_unlock(&c->bucket_lock);
+				set_current_state(TASK_RUNNING);
+				goto again;
+			}
+
+		mutex_unlock(&c->bucket_lock);
+
+		try_to_freeze();
+		schedule();
 	}
 
 	return 0;
@@ -1806,10 +1801,11 @@ static int bch_gc_thread(void *arg)
 
 int bch_gc_thread_start(struct cache_set *c)
 {
-	c->gc_thread = kthread_run(bch_gc_thread, c, "bcache_gc");
+	c->gc_thread = kthread_create(bch_gc_thread, c, "bcache_gc");
 	if (IS_ERR(c->gc_thread))
 		return PTR_ERR(c->gc_thread);
 
+	set_task_state(c->gc_thread, TASK_INTERRUPTIBLE);
 	return 0;
 }
 

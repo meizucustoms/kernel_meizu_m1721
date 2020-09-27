@@ -687,7 +687,6 @@ static struct platform_driver exynos_sysmmu_driver __refdata = {
 		.owner		= THIS_MODULE,
 		.name		= "exynos-sysmmu",
 		.of_match_table	= sysmmu_of_match,
-		.suppress_bind_attrs = true,
 	}
 };
 

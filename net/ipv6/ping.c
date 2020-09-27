@@ -153,10 +153,8 @@ int ping_v6_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	rt = (struct rt6_info *) dst;
 
 	np = inet6_sk(sk);
-	if (!np) {
-		err = -EBADF;
-		goto dst_err_out;
-	}
+	if (!np)
+		return -EBADF;
 
 	pfh.icmph.type = user_icmph.icmp6_type;
 	pfh.icmph.code = user_icmph.icmp6_code;
@@ -185,9 +183,6 @@ int ping_v6_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 						 len);
 	}
 	release_sock(sk);
-
-dst_err_out:
-	dst_release(dst);
 
 	if (err)
 		return err;

@@ -36,7 +36,6 @@
 
 static int target_fd;
 static char target_fname[W_MAX_PATH];
-static unsigned long long filesize;
 
 static int hv_start_fcopy(struct hv_start_fcopy *smsg)
 {
@@ -49,7 +48,6 @@ static int hv_start_fcopy(struct hv_start_fcopy *smsg)
 	if (strlen((char *)smsg->path_name) < (W_MAX_PATH - 2))
 		strcat((char *)smsg->path_name, "/");
 
-	filesize = 0;
 	p = (char *)smsg->path_name;
 	snprintf(target_fname, sizeof(target_fname), "%s/%s",
 		(char *)smsg->path_name, smsg->file_name);
@@ -105,26 +103,14 @@ done:
 static int hv_copy_data(struct hv_do_fcopy *cpmsg)
 {
 	ssize_t bytes_written;
-	int ret = 0;
 
 	bytes_written = pwrite(target_fd, cpmsg->data, cpmsg->size,
 				cpmsg->offset);
 
-	filesize += cpmsg->size;
-	if (bytes_written != cpmsg->size) {
-		switch (errno) {
-		case ENOSPC:
-			ret = HV_ERROR_DISK_FULL;
-			break;
-		default:
-			ret = HV_E_FAIL;
-			break;
-		}
-		syslog(LOG_ERR, "pwrite failed to write %llu bytes: %ld (%s)",
-		       filesize, (long)bytes_written, strerror(errno));
-	}
+	if (bytes_written != cpmsg->size)
+		return HV_E_FAIL;
 
-	return ret;
+	return 0;
 }
 
 static int hv_copy_finished(void)

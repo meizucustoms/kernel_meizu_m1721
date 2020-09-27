@@ -3170,9 +3170,8 @@ static netdev_tx_t e1000_xmit_frame(struct sk_buff *skb,
 		hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 		if (skb->data_len && hdr_len == len) {
 			switch (hw->mac_type) {
-			case e1000_82544: {
 				unsigned int pull_size;
-
+			case e1000_82544:
 				/* Make sure we have room to chop off 4 bytes,
 				 * and that the end alignment will work out to
 				 * this hardware's requirements
@@ -3193,7 +3192,6 @@ static netdev_tx_t e1000_xmit_frame(struct sk_buff *skb,
 				}
 				len = skb_headlen(skb);
 				break;
-			}
 			default:
 				/* do nothing */
 				break;
@@ -3889,10 +3887,7 @@ static bool e1000_clean_tx_irq(struct e1000_adapter *adapter,
 		eop_desc = E1000_TX_DESC(*tx_ring, eop);
 	}
 
-	/* Synchronize with E1000_DESC_UNUSED called from e1000_xmit_frame,
-	 * which will reuse the cleaned buffers.
-	 */
-	smp_store_release(&tx_ring->next_to_clean, i);
+	tx_ring->next_to_clean = i;
 
 	netdev_completed_queue(netdev, pkts_compl, bytes_compl);
 

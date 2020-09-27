@@ -134,7 +134,6 @@ static int sun4i_mdio_probe(struct platform_device *pdev)
 		}
 
 		dev_info(&pdev->dev, "no regulator found\n");
-		data->regulator = NULL;
 	} else {
 		ret = regulator_enable(data->regulator);
 		if (ret)
@@ -150,8 +149,7 @@ static int sun4i_mdio_probe(struct platform_device *pdev)
 	return 0;
 
 err_out_disable_regulator:
-	if (data->regulator)
-		regulator_disable(data->regulator);
+	regulator_disable(data->regulator);
 err_out_free_mdiobus:
 	mdiobus_free(bus);
 	return ret;
