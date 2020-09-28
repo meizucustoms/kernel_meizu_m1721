@@ -13,44 +13,89 @@
 
 &soc {
 	tlmm: pinctrl@1000000 {
-                goodix_reset_reset: goodix_reset_reset{
-                        mux {
-                                pins = "gpio140";
-                                function = "gpio";
-                        };
-                        config {
-                                pins = "gpio140";
-                                drive-strength = <2>;
-                                bias-disable = <0>;
-                                output-low;
-                        };
-                };
-                goodix_reset_active: goodix_reset_active{
-                        mux {
-                                pins = "gpio140";
-                                function = "gpio";
-                        };
-                        config {
-                                pins = "gpio140";
-                                drive-strength = <2>;
-                                bias-disable = <0>;
-                                output-high;
-                        };
-                };
-                goodix_irq_active: goodix_irq_active {
-                        mux {
-                                pins = "gpio48";
-                                function = "gpio";
-                        };
-                        config {
-                                pins = "gpio48";
-                                drive-strength = <2>;
-                                bias-disable = <0>;
-                                input-enable;
-                        };
-                };
+		cs35l35_default {
+			mux {
+				pins = "gpio91";
+				function = "gpio";
+			};
 
+			config {
+				pins = "gpio91";
+				output-high;
+				bias-pull-up;
+				drive-strength = <2>;
+			};
+		};
+
+		cs35l35_irq_default: cs35l35_int_default {
+			mux {
+				pins = "gpio90";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio90";
+				bias-pull-up;
+				drive-strength = <2>;
+				input-enable;
+			};
+		};
+		
+		cs35l35_mclk {
+			cs35l35_mclk_act: cs35l35_mclk_on {
+				mux {
+					pins = "gpio25";
+					function = "sec_mi2s_mclk_a";
+				};
+
+				config {
+					pins = "gpio25";
+					drive-strength = <8>;
+					output-high;
+				};
+			};
+
+			cs35l35_mclk_sus: cs35l35_mclk_off {
+				mux {
+					pins = "gpio25";
+					function = "sec_mi2s_mclk_a";
+				};
+
+				config {
+					pins = "gpio25";
+					drive-strength = <2>;
+					output-low;
+					bias-pull-down;
+				};
+			};
+		};
+		
+		sec-tlmm-lines {
+			sec_tlmm_lines_act: sec_tlmm_lines_act {
+				mux {
+					pins = "gpio135", "gpio136", "gpio137", "gpio138";
+					function = "sec_mi2s";
+				};
+
+				config {
+					pins = "gpio135", "gpio136", "gpio137", "gpio138";
+					drive-strength = <8>;
+				};
+			};
+
+			sec_tlmm_lines_sus: sec_tlmm_lines_sus {
+				mux {
+					pins = "gpio135", "gpio136", "gpio137", "gpio138";
+					function = "sec_mi2s";
+				};
+
+				config {
+					pins = "gpio135", "gpio136", "gpio137", "gpio138";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
 	};
-
 };
 
