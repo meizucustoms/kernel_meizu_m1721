@@ -34,7 +34,7 @@
 &spmi_bus {
 	qcom,pm8953@0 {
 		qcom,power-on@800 {
-                       qcom,store-hard-reset-reason;
+			qcom,store-hard-reset-reason;
 			qcom,pon_1 {
 				qcom,support-reset = <1>;
 				qcom,s1-timer = <6720>;
@@ -50,24 +50,6 @@
 				qcom,pull-up = <1>;
 			};
 		};
-                qcom,leds@a100 {
-                        status = "okay";
-                        compatible = "qcom,leds-qpnp";
-                        reg = <0xa100 0x100>;
-                        label = "mpp";
-                        qcom,led_mpp_2 {
-                                label = "mpp";
-                                linux,name = "button-backlight";
-                                linux,default-trigger = "none";
-                                qcom,default-state = "off";
-                                qcom,max-current = <5>;
-                                qcom,current-setting = <5>;
-                                qcom,id = <6>;
-                                qcom,mode = "manual";
-                                qcom,source-sel = <1>;
-                                qcom,mode-ctrl = <0x61>;
-                        };
-                };
 		/delete-node/ qcom,pm8953_typec@bf00;
 	};
 
@@ -322,10 +304,10 @@
 			compatible = "goodix,fingerprint";
 			reg = <0x00>;
 			interrupt-parent = <&tlmm>;
-			interrupts = <0x30 0x01>;
-			goodix,gpio_irq = <&tlmm 0x30 0x00>;
-			goodix,gpio_reset = <&tlmm 0x8c 0x00>;
-			goodix,gpio_pwr = <&tlmm 0x86 0x00>;
+			interrupts = <48 0x1>;
+			goodix,gpio_irq = <&tlmm 48 0x0>;
+			goodix,gpio_reset = <&tlmm 0x8c 0x0>;
+			goodix,gpio_pwr = <&tlmm 0x86 0x0>;
 			spi-max-frequency = <0x7a1200>;
 		};
 	};
@@ -363,27 +345,22 @@
 			focaltech,fw-delay-readid-ms = <10>;
 			focaltech,fw-delay-era-flsh-ms = <2000>;
 			focaltech,fw-auto-cal;
-			focaltech,fw-vkey-support;
 			focaltech,resume-in-workqueue;
-			focaltech,num-virtual-key = <3>;
-			focal,virtual_key_1 = <172 500 2040>;/*home*/
-			focal,virtual_key_2 = <139 200 2040>;/*menu*/
-			focal,virtual_key_3 = <158 800 2040>;/*back*/
 		};
 		
 		goodix_ts@5d {
 			compatible = "goodix,gt9xx";
 			reg = <0x5d>;
-			interrupt-parent = <0xbe>;
-			interrupts = <0x41 0x2008>;
-			vdd_ana-supply = <0xe2>;
-			vcc_i2c-supply = <0xe3>;
-			goodix,rst-gpio = <0xbe 0x40 0x00>;
-			goodix,irq-gpio = <0xbe 0x41 0x2008>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <65 0x2008>;
+			vdd_ana-supply = <&pm8953_l10>;
+			vcc_i2c-supply = <&pm8953_l6>;
+			goodix,rst-gpio = <&tlmm 64 0x0>;
+			goodix,irq-gpio = <&tlmm 65 0x2008>;
 			pinctrl-names = "pmx_ts_active", "pmx_ts_suspend", "pmx_ts_release";
-			pinctrl-0 = <0xe4 0xe5>;
-			pinctrl-1 = <0xe6 0xe7>;
-			pinctrl-2 = <0xe8>;
+			pinctrl-0 = <&ts_int_active &ts_reset_active>;
+			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			pinctrl-2 = <&ts_release>;
 			goodix,cfg-group0 = <0x46380480 0x70a3d00 0x1c52808 0x50320305 0x4022 0x617 0x191e1487 0x27cc1f21 0x43067c06 0x19b3311 0x00 0x00 0x431c 0x5a858084 0x41e0804 0x801f0065 0x28005232 0x433f00 0x37500037 0x00 0x00 0x90 0x1000000 0xff6f 0x330028 0x00 0xa4600 0x28 0x11121314 0x15161710 0xf0e0d0c 0xb0a0908 0x7060504 0x3020100 0xffffffff 0xffff0a08 0x6050402 0x1e1f20 0x22242829 0xffffff78 0x11000000 0x88701200 0x00 0x1e5a0f66 0x55000020 0x2201155 0x00 0x00 0x03 0x32000501 0xac800 0x00 0x00 0x00 0x00 0x00 0x2301>;
 		};
 	};
@@ -396,7 +373,7 @@
             compatible = "awinic,aw36413";
             label = "awinic,aw36413";
             qcom,flash-type = <1>;
-            gpios = <&tlmm 0x5f 0x00 &tlmm 0x5d 0x00 &tlmm 0x60 0x00>;
+            gpios = <&tlmm 0x5f 0x0 &tlmm 0x5d 0x0 &tlmm 0x60 0x0>;
             qcom,gpio-flash-en = <0>;
             qcom,gpio-flash-en-2 = <1>;
             qcom,gpio-flash-strobe = <2>;
